@@ -1,0 +1,20 @@
+services:
+  adam-api:
+    build: .
+    restart: unless-stopped
+    environment:
+      ADAM_MODE: fal
+      ADAM_DATA: /data
+      FAL_KEY: ${FAL_KEY:?Set FAL_KEY in a private .env file}
+      ADAM_ACCESS_TOKEN: ${ADAM_ACCESS_TOKEN:?Set a random ADAM_ACCESS_TOKEN}
+    volumes:
+      - adam-data:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+volumes:
+  adam-data:
