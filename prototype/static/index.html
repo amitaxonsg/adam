@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ADAM | Artwork Extraction</title><style>
+:root{font-family:system-ui,Segoe UI,sans-serif;color:#e8edf6;background:#101827}body{margin:0}main{max-width:1050px;margin:45px auto;padding:0 20px}h1{margin-bottom:6px}p{color:#aab9ce}form,.result{background:#1b293d;border:1px solid #34455e;padding:25px;border-radius:16px}label{display:block;margin:15px 0 6px}input,select{padding:12px;color:#e8edf6;background:#101827;border:1px solid #50617b;border-radius:8px}button,.link{display:inline-block;background:#4b8bed;color:white;border:0;border-radius:8px;padding:12px 19px;margin:15px 8px 0 0;text-decoration:none;cursor:pointer}button:disabled{opacity:.5}.hidden{display:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:16px}.tile{background:#26364e;padding:12px;border-radius:10px}.tile img{width:100%;aspect-ratio:1;object-fit:contain;background:repeating-conic-gradient(#eee 0% 25%,#ccc 0% 50%) 50%/20px 20px}small{color:#aab9ce}.error{color:#ffa9a9}</style></head><body><main>
+<h1>ADAM Artwork Reconstruction</h1><p>Prototype: upload raster artwork, extract Qwen RGBA layers when a GPU is configured, and export transparent TIFF.</p>
+<form id="form"><label for="file">Artwork (PNG/JPG/WEBP/TIFF, max 20 MB)</label><input type="file" id="file" name="file" accept="image/png,image/jpeg,image/webp,image/tiff" required>
+<label for="layers">Requested Qwen layers</label><select id="layers" name="layers"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select>
+<label for="dpi">TIFF resolution metadata</label><select id="dpi" name="dpi"><option>150</option><option selected>300</option><option>600</option></select>
+<p><small>DPI metadata does not increase pixel detail. Exported TIFF uses lossless RGBA. Confirm size, color profile and RIP compatibility with the printer.</small></p>
+<button id="go">Extract & Export</button><p id="status" aria-live="polite"></p></form>
+<section id="out" class="result hidden"><h2>Output</h2><p id="detail"></p><div id="grid" class="grid"></div><div id="links"></div></section>
+</main><script>
+const f=document.getElementById('form'),out=document.getElementById('out'),status=document.getElementById('status'),go=document.getElementById('go');
+f.addEventListener('submit',async e=>{e.preventDefault();go.disabled=true;out.classList.add('hidden');status.className='';status.textContent='Processing locally on server. GPU inference may take time.';
+try{const response=await fetch('/api/process',{method:'POST',body:new FormData(f)});const data=await response.json();if(!response.ok)throw Error(data.detail||'Processing failed');
+document.getElementById('detail').textContent=data.mode==='manual'?'CPU manual mode: original image layer only; no AI extraction.':data.layers.length+' Qwen-generated RGBA layers.';
+const grid=document.getElementById('grid');grid.replaceChildren();
+for(const layer of data.layers){const box=document.createElement('div');box.className='tile';const img=document.createElement('img');img.alt=layer.name;img.src='/api/jobs/'+data.job_id+'/'+layer.file;const label=document.createElement('p');label.textContent=layer.name;box.append(img,label);grid.append(box)}
+const links=document.getElementById('links');links.replaceChildren();for(const [name,url] of [['Download ZIP',data.package],['Download TIFF',data.tiff]]){const a=document.createElement('a');a.className='link';a.href=url;a.textContent=name;links.append(a)}out.classList.remove('hidden');status.textContent='Finished.';
+}catch(err){status.className='error';status.textContent=err.message}finally{go.disabled=false}});
+</script></body></html>
