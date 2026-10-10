@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADAM Studio — Layer Extraction</title><style>
+*{box-sizing:border-box}body{font:16px system-ui,sans-serif;background:#101827;color:#edf3ff;margin:0}main{max-width:1050px;margin:3rem auto;padding:0 1.25rem}h1{margin-bottom:.2rem}p,.muted{color:#b1c1d6}.card{background:#1b293b;border:1px solid #3b4c63;border-radius:15px;padding:24px;margin-top:22px}label{display:block;margin:16px 0 6px;font-weight:600}input,select{background:#111b2a;color:white;padding:12px;border:1px solid #536681;border-radius:8px;max-width:100%}input[type=file]{width:100%}input[type=password]{width:100%}button{background:#4688f5;color:white;border:0;border-radius:9px;padding:13px 24px;margin-top:20px;cursor:pointer}button:disabled{opacity:.5}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:16px}.tile{padding:12px;border-radius:12px;background:#263953}.tile img{width:100%;height:190px;object-fit:contain;background:repeating-conic-gradient(#eee 0% 25%,#c8c8c8 0% 50%) 50%/20px 20px}a{display:inline-block;margin:10px 15px 0 0;color:#9fcaff}.error{color:#ffacae}.hidden{display:none}</style></head>
+<body><main><h1>ADAM Artwork Studio</h1><p>Convert a flat design into approximate RGBA image layers with the hosted Qwen API, then export a composite TIFF.</p>
+<section class="card"><form id="form">
+<label for="token">Prototype access token</label><input id="token" type="password" autocomplete="off" required placeholder="ADAM_ACCESS_TOKEN — kept in this tab only">
+<label for="file">Upload existing artwork</label><input id="file" name="file" type="file" accept="image/png,image/jpeg,image/webp,image/tiff" required>
+<label for="layers">Layer count</label><select name="layers" id="layers"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>8</option><option>10</option></select>
+<label for="dpi">TIFF DPI metadata</label><select name="dpi" id="dpi"><option>150</option><option selected>300</option><option>600</option></select>
+<p class="muted">DPI does not increase pixel detail. Source graphics remain raster until manually vectorized.</p>
+<button id="submit">Extract layers</button><p id="status" role="status"></p>
+</form></section>
+<section id="results" class="card hidden"><h2>Reconstructed layers</h2><p id="summary"></p><div id="grid" class="grid"></div><div id="downloads"></div></section>
+</main><script>
+const el=id=>document.getElementById(id), form=el('form');
+let timer=null;
+async function json(path,opts={}){const r=await fetch(path,{...opts,headers:{'X-Adam-Token':el('token').value,...opts.headers}});const data=await r.json();if(!r.ok)throw Error(data.detail||'Server error');return data;}
+async function fileLink(job,name,label){const r=await fetch('/api/jobs/'+job+'/files/'+name,{headers:{'X-Adam-Token':el('token').value}});if(!r.ok)throw Error('Could not retrieve '+name);const blob=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.textContent=label;return a}
+async function show(job,data){el('results').classList.remove('hidden');el('summary').textContent=data.mode+' — '+data.layers.length+' image layers; '+data.width+' × '+data.height+' pixels.';
+const grid=el('grid');grid.replaceChildren();for(const item of data.layers){const tile=document.createElement('div');tile.className='tile';const img=document.createElement('img');img.alt=item.name;const res=await fetch('/api/jobs/'+job+'/files/'+item.file,{headers:{'X-Adam-Token':el('token').value}});if(!res.ok)throw Error('Failed to load layer');img.src=URL.createObjectURL(await res.blob());const p=document.createElement('p');p.textContent=item.name;tile.append(img,p);grid.append(tile)}
+const links=el('downloads');links.replaceChildren();links.append(await fileLink(job,'artwork.zip','Download full ZIP'),await fileLink(job,'print_rgba.tif','Download TIFF'))}
+form.addEventListener('submit',async e=>{e.preventDefault();el('submit').disabled=true;el('results').classList.add('hidden');el('status').className='';el('status').textContent='Uploading...';try{
+const job=await json('/api/jobs',{method:'POST',body:new FormData(form)});el('status').textContent='Qwen job submitted. Checking progress...';
+let complete=false;for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));const data=await json('/api/jobs/'+job.job_id);if(data.state==='error')throw Error(data.message);if(data.state==='complete'){await show(job.job_id,data);complete=true;break}el('status').textContent='Processing: '+data.state}
+if(!complete)throw Error('Polling timed out; the server job may still be running.');el('status').textContent='Completed.';
+}catch(error){el('status').className='error';el('status').textContent=error.message}finally{el('submit').disabled=false}})
+</script></body></html>
